@@ -108,8 +108,9 @@ void WiFiManager::setupConfigPortal() {
   dnsServer.reset(new DNSServer());
   server.reset(new ESP8266WebServer(80));
 
-  DEBUG_WM(F(""));
-  _configPortalStart = millis();
+  DEBUG_WM(F(""));  
+  _configPortalStart = _maintainStart = millis();
+
 
   DEBUG_WM(F("Configuring access point... "));
   DEBUG_WM(_apName);
@@ -176,10 +177,14 @@ boolean WiFiManager::autoConnect(char const *apName, char const *apPassword) {
     DEBUG_WM(F("IP Address:"));
     DEBUG_WM(WiFi.localIP());
     //connected
-    return true;
+    return WL_CONNECTED;
+  } 
+  else { 
+    if (_autoConfigPortal) {
+	  return startConfigPortal(apName, apPassword);
+    }
+    return false;
   }
-
-  return startConfigPortal(apName, apPassword);
 }
 
 boolean WiFiManager::configPortalHasTimeout(){
@@ -188,6 +193,15 @@ boolean WiFiManager::configPortalHasTimeout(){
       return false;
     }
     return (millis() > _configPortalStart + _configPortalTimeout);
+}
+
+boolean WiFiManager::checkPortalMaintain(){
+	if (_maintainTimer_ms == 0) return false; 
+	if (millis() > _maintainStart + _maintainTimer_ms) {
+      	_maintainStart = millis(); // set next timer
+      	return true;	
+	}
+    	return false;
 }
 
 boolean WiFiManager::startConfigPortal() {
@@ -224,8 +238,14 @@ boolean  WiFiManager::startConfigPortal(char const *apName, char const *apPasswo
 
   while(1){
 
+    if(checkPortalMaintain()) {
+	    if (_maintaincallback != NULL){
+		    _maintaincallback();
+	    }
+    }
+
     // check if timeout
-    if(configPortalHasTimeout()) break;
+     if(configPortalHasTimeout()) break;
 
     //DNS
     dnsServer->processNextRequest();
@@ -233,7 +253,7 @@ boolean  WiFiManager::startConfigPortal(char const *apName, char const *apPasswo
     server->handleClient();
 
     if (connect) {
-      delay(1000);
+      run_scheduled_functions();
       connect = false;
 
       // if saving with no ssid filled in, reconnect to ssid
@@ -275,13 +295,14 @@ boolean  WiFiManager::startConfigPortal(char const *apName, char const *apPasswo
           if(WiFi.status() == WL_CONNECTED) break;
           DEBUG_WM(".");
           // Serial.println(WiFi.status());
-          delay(100);
+          run_scheduled_functions();
         }        
         delay(1000);
         break;
       }
     }
     yield();
+    run_scheduled_functions();
   }
 
   server.reset();
@@ -365,7 +386,7 @@ uint8_t WiFiManager::waitForConnectResult() {
       if (status == WL_CONNECTED) {
         keepConnecting = false;
       }
-      delay(100);
+      run_scheduled_functions();
     }
     return status;
   }
@@ -413,6 +434,14 @@ void WiFiManager::setTimeout(unsigned long seconds) {
 
 void WiFiManager::setConfigPortalTimeout(unsigned long seconds) {
   _configPortalTimeout = seconds * 1000;
+}
+
+void WiFiManager::setMaintainTimer_ms(unsigned long milliseconds) {
+  _maintainTimer_ms = milliseconds;
+}
+
+void WiFiManager::setAutoConfigPortal(bool enable) {
+  _autoConfigPortal = enable;
 }
 
 void WiFiManager::setConnectTimeout(unsigned long seconds) {
@@ -543,6 +572,7 @@ void WiFiManager::handleWifi(boolean scan) {
           }
           //DEBUG_WM(item);
           page += item;
+          run_scheduled_functions();
           delay(0);
         } else {
           DEBUG_WM(F("Skipping due to quality"));
@@ -715,7 +745,7 @@ void WiFiManager::handleInfo() {
   page += F("<dt>Station MAC</dt><dd>");
   page += WiFi.macAddress();
   page += F("</dd>");
-  page += F("</dl>");
+  page += F("<dd><button onClick=\"javascript:window.history.back();\">Go Back</button></dl>");
   page += FPSTR(HTTP_END);
 
   server->sendHeader("Content-Length", String(page.length()));
@@ -785,6 +815,11 @@ boolean WiFiManager::captivePortal() {
 //start up config portal callback
 void WiFiManager::setAPCallback( void (*func)(WiFiManager* myWiFiManager) ) {
   _apcallback = func;
+}
+
+//maintain config portal callback
+void WiFiManager::setMaintainCallback( void (*func)(void) ) {
+  _maintaincallback = func;
 }
 
 //start up save config callback
