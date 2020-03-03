@@ -91,6 +91,16 @@ class WiFiManager
     //in seconds setConfigPortalTimeout is a new name for setTimeout
     void          setConfigPortalTimeout(unsigned long seconds);
     void          setTimeout(unsigned long seconds);
+    
+    //useful for performing periodic actions (in ms) while     
+    //config portal is active - must also call
+    //setMaintainCallback(*) function
+    void          setMaintainTimer_ms(unsigned long seconds);
+    
+    //setting this true blocks automatic launch of config portal
+    //when using autoconnect - probably will want to launch it 
+    //using some other method like startConfigPortal() default=true 
+    void          setAutoConfigPortal(boolean enable); 
 
     //sets timeout for which to attempt connecting, useful if you get a lot of failed connects
     void          setConnectTimeout(unsigned long seconds);
@@ -105,6 +115,10 @@ class WiFiManager
     void          setSTAStaticIPConfig(IPAddress ip, IPAddress gw, IPAddress sn);
     //called when AP mode and config portal is started
     void          setAPCallback( void (*func)(WiFiManager*) );
+    //called when maintainance timer expires - to perform quick                                 
+    //actions while config portal is running without shutting  
+    //down the AP
+    void          setMaintainCallback( void (*func)(void) ); 
     //called when settings have been changed and connection was successful
     void          setSaveConfigCallback( void (*func)(void) );
     //adds a custom parameter, returns false on failure
@@ -117,6 +131,8 @@ class WiFiManager
     void          setCustomHeadElement(const char* element);
     //if this is true, remove duplicated Access Points - defaut true
     void          setRemoveDuplicateAPs(boolean removeDuplicates);
+    //needed this exposed under public to allow more control
+    int           connectWifi(String ssid, String pass);  
 
   private:
     std::unique_ptr<DNSServer>        dnsServer;
@@ -137,6 +153,10 @@ class WiFiManager
     unsigned long _configPortalTimeout    = 0;
     unsigned long _connectTimeout         = 0;
     unsigned long _configPortalStart      = 0;
+    unsigned long _maintainStart          = 0;
+    unsigned long _maintainTimer_ms	      = 0;   //Default = 0, disabled
+    boolean       _autoConfigPortal       = true;//Default = true, autostart
+                                                 //portal enabled.
 
     IPAddress     _ap_static_ip;
     IPAddress     _ap_static_gw;
@@ -169,6 +189,7 @@ class WiFiManager
     void          handle204();
     boolean       captivePortal();
     boolean       configPortalHasTimeout();
+    boolean       checkPortalMaintain();
 
     // DNS server
     const byte    DNS_PORT = 53;
@@ -182,6 +203,7 @@ class WiFiManager
     boolean       _debug = true;
 
     void (*_apcallback)(WiFiManager*) = NULL;
+    void (*_maintaincallback)(void) = NULL;
     void (*_savecallback)(void) = NULL;
 
     int                    _max_params;
