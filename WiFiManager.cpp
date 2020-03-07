@@ -9,8 +9,14 @@
    Built by AlexT https://github.com/tzapu
    Licensed under MIT license
  **************************************************************/
+#define __USE_SCHEDULER__
+
+#ifdef __USE_SCHEDULER__
+#include <Schedule.h>
+#endif
 
 #include "WiFiManager.h"
+
 
 WiFiManagerParameter::WiFiManagerParameter(const char *custom) {
   _id = NULL;
@@ -167,8 +173,8 @@ boolean WiFiManager::autoConnect(char const *apName, char const *apPassword) {
   DEBUG_WM(F("AutoConnect"));
 
   // read eeprom for ssid and pass
-  //String ssid = getSSID();
-  //String pass = getPassword();
+  String ssid = getSSID();
+  String pass = getPassword();
 
   // attempt to connect; should it fail, fall back to AP
   WiFi.mode(WIFI_STA);
@@ -253,7 +259,9 @@ boolean  WiFiManager::startConfigPortal(char const *apName, char const *apPasswo
     server->handleClient();
 
     if (connect) {
-      run_scheduled_functions();
+#ifdef __USE_SCHEDULER__
+run_scheduled_functions();
+#endif
       connect = false;
 
       // if saving with no ssid filled in, reconnect to ssid
@@ -294,15 +302,16 @@ boolean  WiFiManager::startConfigPortal(char const *apName, char const *apPasswo
         for(size_t i = 0 ; i<100;i++){
           if(WiFi.status() == WL_CONNECTED) break;
           DEBUG_WM(".");
-          // Serial.println(WiFi.status());
-          run_scheduled_functions();
+          // Serial.println(WiFi.status());    
+#ifdef __USE_SCHEDULER__
+run_scheduled_functions();
+#endif
         }        
         delay(1000);
         break;
       }
     }
     yield();
-    run_scheduled_functions();
   }
 
   server.reset();
@@ -386,7 +395,9 @@ uint8_t WiFiManager::waitForConnectResult() {
       if (status == WL_CONNECTED) {
         keepConnecting = false;
       }
-      run_scheduled_functions();
+#ifdef __USE_SCHEDULER__
+run_scheduled_functions();
+#endif
     }
     return status;
   }
@@ -397,8 +408,8 @@ void WiFiManager::startWPS() {
   WiFi.beginWPSConfig();
   DEBUG_WM(F("END WPS"));
 }
-/*
-  String WiFiManager::getSSID() {
+
+String WiFiManager::getSSID() {
   if (_ssid == "") {
     DEBUG_WM(F("Reading SSID"));
     _ssid = WiFi.SSID();
@@ -406,9 +417,9 @@ void WiFiManager::startWPS() {
     DEBUG_WM(_ssid);
   }
   return _ssid;
-  }
+}
 
-  String WiFiManager::getPassword() {
+String WiFiManager::getPassword() {
   if (_pass == "") {
     DEBUG_WM(F("Reading Password"));
     _pass = WiFi.psk();
@@ -416,8 +427,8 @@ void WiFiManager::startWPS() {
     //DEBUG_WM(_pass);
   }
   return _pass;
-  }
-*/
+}
+
 String WiFiManager::getConfigPortalSSID() {
   return _apName;
 }
@@ -572,7 +583,10 @@ void WiFiManager::handleWifi(boolean scan) {
           }
           //DEBUG_WM(item);
           page += item;
-          run_scheduled_functions();
+          
+#ifdef __USE_SCHEDULER__
+run_scheduled_functions();
+#endif
           delay(0);
         } else {
           DEBUG_WM(F("Skipping due to quality"));
